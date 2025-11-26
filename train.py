@@ -116,82 +116,69 @@
 #     #   속도를 포기하더라도 정확한 계산(FP32)을 위해 끈 것으로 보입니다.
 # )
 
-from ultralytics import YOLO
-from datetime import datetime
-import torch
 import os
+import sys
+import torch
+import wandb # 추가됨
+from ultralytics import YOLO
 
 # ==================================================================================
-# [설정] 경로 및 하이퍼파라미터
+# [Step 0] WandB 끄기 (핵심 해결책)
 # ==================================================================================
+# Why: 경로에 슬래시(/)가 있으면 WandB가 프로젝트 이름으로 인식해서 에러를 냅니다.
+# 이걸 끄면 순수하게 로컬(파일 시스템) 저장 모드로 작동합니다.
+try:
+    wandb.init(mode="disabled")
+except ImportError:
+    pass # wandb가 안 깔려 있으면 무시
 
-# 1. 데이터셋 경로 (아까 만든 그 파일!)
-# 에러가 났던 'crowdhuman.yaml' 대신 우리가 만든 파일을 지정합니다.
+# ==================================================================================
+# [Step 1] 설정
+# ==================================================================================
 DATASET_YAML = "/content/drive/MyDrive/datasets-test/dog_jde.yaml" 
+MODEL_CONFIG = "yolo11n-jde.yaml"
+PRETRAINED_WEIGHTS = "yolo11n.pt"
 
-# 2. 모델 설정 (Nano 버전)
-MODEL_CONFIG = "yolo11n-jde.yaml"  # 위에서 만든 설정 파일
-PRETRAINED_WEIGHTS = "yolo11n.pt"  # 깡통이 아니라 미리 학습된 지식(COCO) 탑재
-
-# 3. 하드웨어/학습 설정 (Colab 최적화)
 EPOCHS = 30
 BATCH_SIZE = 16   
-# - 원래 32였지만, Colab 무료/Pro 버전에선 메모리(RAM/VRAM)가 빡빡할 수 있습니다.
-# - 안전하게 16으로 시작하고, 잘 돌아가면 32로 늘리세요.
-
 IMG_SIZE = 640    
-# - 원래 1280이었지만, Nano 모델은 보통 640에서 학습합니다.
-# - 1280으로 하면 메모리가 터질(OOM) 확률이 매우 높고 속도가 4배 느려집니다.
-# - 강아지 탐지에는 640으로도 충분합니다.
 
 # ==================================================================================
-# [실행] 모델 로드 및 학습
+# [Step 2] 모델 로드 및 학습
 # ==================================================================================
+print(f"🚀 모델 로딩 중: {MODEL_CONFIG}")
 
-# 1. 모델 초기화
-# task='detect'가 아니라 'jde'여야 하는데, 이 리포지토리의 구조상 
-# task='detect'로 두고 커스텀 헤드를 인식시키는 방식일 수도 있습니다.
-# 일단 제공해주신 코드대로 task='jde'를 유지하되, 에러나면 task='detect'로 바꿔보세요.
-print(f"🚀 모델 로딩 중: {MODEL_CONFIG} (Pretrained: {PRETRAINED_WEIGHTS})")
-
+# 모델 초기화
 try:
-    # load() 함수는 구조가 같아야 동작합니다. 
-    # n-jde 구조에 n-pt 가중치를 넣으면 일부(Backbone)만 들어가고 Head는 랜덤 초기화됩니다. (정상)
     model = YOLO(MODEL_CONFIG).load(PRETRAINED_WEIGHTS)
 except Exception as e:
     print(f"⚠️ 로드 경고 (무시 가능): {e}")
-    # 가중치 로드 실패시 깡통으로라도 시작
-    model = YOLO(MODEL_CONFIG) 
+    model = YOLO(MODEL_CONFIG)
 
-# 2. 학습 시작
-print(f"🔥 학습 시작! (Target: {DATASET_YAML})")
+print(f"🔥 학습 시작! (결과는 구글 드라이브에 자동 저장됩니다)")
 
 model.train(
-    # [프로젝트 관리]
-    project='/content/drive/MyDrive/runs/train', # 구글 드라이브에 결과 저장 (세션 끊겨도 살림)
+    # [프로젝트 관리 - 경로 설정]
+    # WandB를 껐으므로, 이제 마음껏 슬래시(/)가 들어간 경로를 쓸 수 있습니다.
+    project='/content/drive/MyDrive/runs/train', 
     name=f'Dog-JDE-n-{IMG_SIZE}-{BATCH_SIZE}b',
     
-    # [핵심 데이터]
-    data=DATASET_YAML,  # <--- 여기가 수정된 핵심 포인트!
-    
-    # [학습 파라미터]
+    # [데이터 및 하드웨어]
+    data=DATASET_YAML,
     epochs=EPOCHS,
     batch=BATCH_SIZE,
     imgsz=IMG_SIZE,
-    device=0,           # GPU 1개 사용 (Colab은 무조건 0번)
+    device=0,
     
-    # [JDE 특화 설정]
-    # Re-ID에서는 모자이크(이미지 4개 섞기)가 독이 될 수 있습니다.
-    # 사람/동물의 상반신, 하반신이 잘리면 누구인지 모르기 때문입니다.
-    # 하지만 데이터가 적을 땐(50개) 켜는 게 나을 수도 있습니다. 일단 끕니다(0).
-    close_mosaic=10,    # 마지막 10 에폭 동안은 모자이크 끄기 (절충안)
+    # [JDE 설정]
+    close_mosaic=10,
     
     # [시스템 설정]
-    save=True,          # 모델 저장
-    plots=True,         # 그래프 그리기
-    amp=True,           # True로 변경함. (T4/A100에서는 FP16을 써야 속도가 빠릅니다. 성능 저하 거의 없음)
-    workers=4,          # 데이터 로더 프로세스 수 (Colab은 2~4 적당)
-    cache=False         # RAM 절약
+    save=True,          
+    plots=True,         
+    amp=True,           
+    workers=2, # Colab에서는 너무 높으면 에러날 수 있어 2~4 권장
+    cache=False
 )
 
-print("🎉 모든 학습 과정이 종료되었습니다!")
+print("🎉 학습 완료! 구글 드라이브를 확인해보세요.")
