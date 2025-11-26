@@ -79,7 +79,8 @@ model.train(
     # [하드웨어 설정 - 주의!]
     epochs=epochs,
     batch=batch,
-    device=[0,1,2,3,4,5,6,7], # GPU 8개를 병렬로 사용합니다. (엄청난 고사양 세팅입니다)
+    device=[0], 
+    # device=[0,1,2,3,4,5,6,7], # GPU 8개를 병렬로 사용합니다. (엄청난 고사양 세팅입니다)
                               # Tip: GPU가 1개라면 device=[0] 또는 device='0'으로 바꿔야 에러가 안 납니다.
 
     # [이미지 전처리]
