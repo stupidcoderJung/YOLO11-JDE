@@ -1,4 +1,4 @@
-import comet_ml
+# import comet_ml
 from ultralytics import YOLO
 from datetime import datetime
 from functools import partial
@@ -32,8 +32,8 @@ os.environ['NUMEXPR_NUM_THREADS'] = N_THREADS
 # - 비유: "비행기 블랙박스 + 실시간 계기판" 역할을 합니다.
 # ----------------------------------------------------------------------------------
 from ultralytics.utils import SETTINGS
-SETTINGS['comet'] = True  # Ultralytics 내부 설정에서 Comet 사용을 켭니다.
-comet_ml.init()           # Comet ML 서버와 통신 시작 (API Key가 필요할 수 있음)
+# SETTINGS['comet'] = True  # Ultralytics 내부 설정에서 Comet 사용을 켭니다.
+# comet_ml.init()           # Comet ML 서버와 통신 시작 (API Key가 필요할 수 있음)
 
 # MOT(다중 객체 추적) 성능 평가를 위한 커스텀 함수 불러오기
 from tracker.evaluation.mot_callback import mot_eval
