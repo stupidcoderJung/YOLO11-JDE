@@ -178,7 +178,7 @@ model.train(
     plots=True,         
     amp=True,           
     workers=2, # Colab에서는 너무 높으면 에러날 수 있어 2~4 권장
-    cache=False
+    cache=False,
 
 
     # ==============================================================
